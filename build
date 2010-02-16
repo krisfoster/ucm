@@ -1,0 +1,201 @@
+#!/bin/bash
+# 
+# License: This code is licensed as per the LICENSE file
+# included.
+#
+# This code lives at: http://bitbucket.org/kris/ucm/
+#
+# Script to build a deploybale release from th eher svn tree - essentially it combines 
+# the model office and site specific release trees and builds the release from only those
+# elements that have changed since the last complete (successfull) build.
+#  
+# We fix the release using the fix_rel command (see the fix_rel script). This gets the current 
+# svn release number and adds it to the ~/.releases/latest script. This ~/.releases/latest 
+# script is run by the build to set the various variables that are used by the build script.
+#
+# The environment variables, set in the ~/.releases/latest script, are:
+# * SVN_CURRENT_REPO:	The location on the file system of the svn check out
+# * SVN_CURRENT_REL:	The current release number within svn we are building from
+# * REL_NUM:		The release number - used to differentiate unqiue builds
+#
+# Usage:
+# build
+#
+# Todo:
+# * Fix the issue with folders that are added. These cause files not to be added when they exist in a new folder
+#   that has been added to the repository inbetween HEAD and the revision we are doing the build from.
+#
+# Author: Kris Foster kristian.foster@gmail.com
+#
+
+
+# Load the build settings
+if [ ! -e ~/.releases/latest ]
+then
+	echo "~/.releases/latest script is not defined! Run fix_rel first before running build."
+	exit 1
+fi
+source ~/.releases/latest
+
+# Check that the evironment vars we need are defined
+if [ "$SVN_CURRENT_REPO" = "" ]
+then
+	echo "You need to have a value for SVN_CURRENT_REPO set"
+	exit 1
+fi
+if [ "$REL_NUM" = "" ]
+then
+	echo "You need to have a value for REL_NUM set"
+	exit 1
+fi
+if [ "$SVN_CURRENT_REL" = "" ]
+then
+	echo "You need to have a value for SVN_CURRENT_REl set"
+	exit 1
+fi
+
+# Set the name of the release directory
+REL_DIR=~/releases/$REL_NUM
+
+echo "################################################################"
+echo "#"
+echo "#	Current SVN root: $SVN_CURRENT_REPO"
+echo "#	Release Number: $REL_NUM"
+echo "#	Current revision to do a build from: $SVN_CURRENT_REL"
+echo "#	Release dir: $REL_DIR"
+echo "#"
+echo "################################################################"
+echo "#"
+echo "#	Build run on: `date`"
+echo "#"
+echo "################################################################"
+
+# Clear down the previous version of the build if it exists
+if [ -d $REL_DIR ]
+then
+	echo "Deleting previous version of build folder... $REL_DIR"
+	rm -rf $REL_DIR
+fi
+
+# Make the release directory structure
+echo "Making directory: $REL_DIR"
+mkdir -p $REL_DIR/Archives
+mkdir -p $REL_DIR/CMU
+mkdir -p $REL_DIR/Files
+mkdir -p $REL_DIR/Folder_Archives
+mkdir -p $REL_DIR/SQL
+mkdir -p $REL_DIR/Components
+
+# Create a link to the latest version of the build
+# TODO: Need to add functionality to add a link to the previous version
+if [ -e ~/releases/latest ]
+then
+	echo "Deleting previous latest link to build..."
+	rm ~/releases/latest
+fi
+echo "Creating a latest link to the current build folder..."
+ln -s $REL_DIR ~/releases/latest
+
+# Update the sites and the release folders - this where all releases end up
+echo "Doing an update of the release folders from svn..."
+svn update $SVN_CURRENT_REPO/Releases
+svn update $SVN_CURRENT_REPO/Sites
+echo "SVN update complete..."
+
+# Function: Adds a changed / added file to the release
+add_to_rel()
+{
+	echo "	* Adding: $1";
+	echo $1 >> $REL_DIR/release.txt;
+	svn log $1 >> $REL_DIR/release.txt;
+	cp -u $1 $REL_DIR/$2;
+}
+
+# Function: Takes a list of svn dirs and looks through them for changed files
+add_files()
+{
+	OUT_DIR=$1
+	shift
+	for DIR in $@; do
+		echo "* Looking in: $DIR"
+		# Check that the dir has not ben added since the revision we are building from
+		# If it has then we will need to add all of the files within it - we do not have to worry about
+		# sub-dirs
+		export ADDED_REV=`svn log --incremental $DIR | tail -3 | head -1 | awk '{print $1}' | sed 's/r//g'`
+		#echo "ADDED_REV:: $ADDED_REV"
+		if [ $ADDED_REV  -gt $SVN_CURRENT_REL ]
+		then
+			#echo "	[$DIR, added in Revision: $ADDED_REV]"
+			for FILE in $DIR/*; do
+				add_to_rel $FILE $OUT_DIR
+			done
+		else
+			# Existed prior to this release so see what has changed since the last release
+			# Uses the svn diff command to figure out what has changed since the specified release. The sed stuff strips out the
+			# none file name output so what we are left with is just a file path
+			for FILE in $(svn diff -r "$SVN_CURRENT_REL:HEAD" --summarize $DIR | sed 's/[DMA]\s\s\s\s\s\s//g'); do
+				add_to_rel $FILE $OUT_DIR
+			done
+		fi
+	done
+}
+
+#
+# Build the release - get everything that has changed and place it in the correct folder within the release
+#
+
+# Fetch all the changed / new archives
+echo ""
+echo "Checking for changed content archives..."
+for DIR in $SVN_CURRENT_REPO/Releases/Full/Archives $SVN_CURRENT_REPO/Sites/**/Archives; do
+	add_files ./Archives $DIR
+done
+
+# Fetch all the changed / new CMU bundles
+echo ""
+echo "Checking for changed cmu bundles..."
+for DIR in $SVN_CURRENT_REPO/Releases/Full/CMU $SVN_CURRENT_REPO/Sites/**/CMU; do
+	add_files ./CMU $DIR
+done
+
+# Fetch all the changed / new Folder Archives
+echo ""
+echo "Checking for changed folder archives..."
+for DIR in $SVN_CURRENT_REPO/Releases/Full/Folder_Archive; do
+	add_files ./Folder_Archives $DIR
+done
+
+# Fetch all the changed / new Components
+echo ""
+echo "Checking for changed components..."
+for DIR in $SVN_CURRENT_REPO/Releases/Full/Components $SVN_CURRENT_REPO/Sites/**/Components; do
+	add_files ./Components $DIR
+done
+
+# Fetch all the changed / new files
+echo ""
+echo "Checking for changed files..."
+for DIR in $SVN_CURRENT_REPO/Releases/Full/Files; do
+	add_files "Files" $DIR
+done
+
+# Fetch all the changed / new SQL scripts
+echo ""
+echo "Checking for changed SQL scripts..."
+for DIR in $SVN_CURRENT_REPO/Releases/Full/SQL $SVN_CURRENT_REPO/Sites/**/SQL; do
+	add_files ./SQL $DIR
+done
+
+# tar and zip the whole lot up for deployment
+echo ""
+echo "Creating zip of release: $REL_DIR/$REL_NUM.zip..."
+cd $REL_DIR/..
+if [ -e $REL_DIR/$REL_NUM.zip ]
+then
+	echo "Deleting previous zip of release... $REL_DIR/$REL_NUM.zip"
+	rm $REL_DIR/$REL_NUM.zip
+fi
+zip -r $REL_DIR/$REL_NUM.zip $REL_NUM 
+cd -
+
+echo "Done :)"

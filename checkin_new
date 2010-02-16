@@ -1,0 +1,54 @@
+#!/bin/bash
+
+USAGE="USAGE: checkin_new UCM_SERVER[e.g. http://localhost/idc] USER PASSWORD DOC_NAME"
+OUT_FILE=/dev/null
+
+# Check the required params
+if [ "$#" -lt "5" ]
+then
+	echo $USAGE
+	exit 1
+fi
+if [ "$1" = "" ]
+then
+	echo "No UCM server defined. Ensure SVR vaiable is being set."
+	echo $USAGE
+	exit 1
+fi
+SVR=$1
+if [ "$2" = "" ]
+then
+	echo "No UCM logon defined. Ensure USR vaiable is being set."
+	echo $USAGE
+	exit 1
+fi
+USR=$2
+if [ "$3" = "" ]
+then
+	echo "No UCM password defined. Ensure you pass a sysadmin password in from the command line"
+	echo $USAGE
+	exit 1
+fi
+PASS=$3
+if [ "$4" = "" ]
+then
+	echo "No UCM password defined. Ensure you pass a sysadmin password in from the command line"
+	echo $USAGE
+	exit 1
+fi
+DOC_NAME=$4
+if [ "$5" = "" ]
+then
+	echo "No UCM password defined. Ensure you pass a sysadmin password in from the command line"
+	echo $USAGE
+	exit 1
+fi
+FILE=$4
+
+curl -u $USR:$PASS -F "IdcService=CHECKOUT_BY_NAME" -F "dDocName=$DOC_NAME" $SVR/idcplg >> $OUT_FILE 
+echo "Checked out the file..."
+
+curl -u $USR:$PASS -F "IdcService=CHECKIN_SEL" -F "dDocName=$DOC_NAME" -F "dDocAuthor=$USR" -F "primaryFile=@$FILE" -F "dFileCopy=1" $SVR/idcplg #>> $OUT_FILE 
+
+
+#curl -u $USR:$PASS -F "IdcService=CHECKIN_SEL" -F "dDocName=" -F "dDocAuthor=" -F "dDocTitle=" -F "dDocType=" -F "dID=" -F "dRevLabel=" -F "dSecurityGroup=" -F "dDocAccount=" -F "primaryFile=@$FILE" -F "dFileCopy=1" $SVR/idcplg >> $OUT_FILE 

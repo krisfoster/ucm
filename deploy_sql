@@ -1,0 +1,31 @@
+#!/bin/bash
+# 
+# License: This code is licensed as per the LICENSE file
+# included.
+#
+# Script to deploy the SQL scripts
+# 
+# Usage:
+# deploy_sql <sql password for ucmuser>
+#
+# Todo:
+# *
+#
+# Author: Kris Foster kristian.foster@gmail.com
+#
+
+# User name and password for Oracle DB on deploy server
+SQL_USER=$1
+SQL_PASS=$2
+
+# Copy the content archives into the new tmp dir structure
+if [ ! -e deploy.sql ]
+then
+	echo "No deploy.sql file found. You need one - this is the file that calls the sql scripts in the corrcet order"
+	exit 1
+fi
+
+echo "Running SQL scripts..."
+cat deploy.sql | sqlplus -s $SQL_USER/$SQL_PASS > output; vim output;
+rm output
+

@@ -1,0 +1,95 @@
+#!/bin/bash
+# 
+# License: This code is licensed as per the LICENSE file
+# included.
+#
+# Script to deploy CMU bundles. Currently this ONLY uploads them to the content
+# server - it does not yet import them.
+#
+# Todo:
+# * Import the cmu bundles that were uploaded
+#
+# Author: Kris Foster kristian.foster@gmail.com
+
+USAGE="USAGE: deploy_archives FILE UCM_SERVER[e.g. http://localhost/idc] USER PASSWORD"
+
+# Check the required params
+if [ $# != 4 ]
+then
+	echo $USAGE
+	exit 1
+fi
+if [ "$1" = "" ]
+then
+	echo "No file specified."
+	echo $USAGE
+	exit 1
+fi
+FILE=$1
+if [ "$2" = "" ]
+then
+	echo "No UCM server defined. Ensure SVR vaiable is being set."
+	echo $USAGE
+	exit 1
+fi
+SVR=$2
+if [ "$3" = "" ]
+then
+	echo "No UCM logon defined. Ensure USR vaiable is being set."
+	echo $USAGE
+	exit 1
+fi
+USR=$3
+if [ "$4" = "" ]
+then
+	echo "No UCM password defined. Ensure you pass a sysadmin password in from the command line"
+	echo $USAGE
+	exit 1
+fi
+PASS=$4
+
+
+#ls -1 *.zip | xargs -i -t unzip -o {} -d $UCM_HOME/archives
+export ARCHIVE_NAME=`unzip -l $FILE | head -4 | tail -1 | awk -F" " '{print $4}' | awk -F"/" '{print $1}'`
+echo "File name: $FILE"
+echo "Archive name: $ARCHIVE_NAME"
+unzip -o $FILE -d $UCM_HOME/archives
+
+# empty the collection.hda file
+cd $UCM_HOME/archives
+if [ -e collection.hda ]
+then
+	cat /dev/null > collection.hda
+fi
+
+# and repopulate it from th elist of dirs in the archives dir
+python - >> collection.hda << EOP
+from os import listdir
+from os.path import isdir, join
+dirname = '.'
+header="""<?hda version="10.1.3.5.0 (090707)" jcharset=UTF8 encoding=utf-8?>
+@Properties LocalData
+blFieldTypes=
+IDC_Name=UCMCMD1
+blDateFormat=dd/MM/yyyy {H:mm[:ss] [zzz]}!tEurope/London
+@end
+@ResultSet Archives
+2
+aArchiveName
+aArchiveDescription"""
+footer="""@end
+"""
+print header
+for item in listdir(dirname):
+    if isdir(join(dirname, item)):
+	    print "%s\n%s" % (item, item)
+print footer
+EOP
+
+# Start the archive import
+curl -u $USR:$PASS -F "IdcService=IMPORT_ARCHIVE" -F "IDC_Name=idc" -F "aArchiveName=$ARCHIVE_NAME" -F "aImportDocuments=1" -F "aImportDocConfigs=1" $SVR/idcplg  >> /dev/null
+lynx $SVR/groups/secure/logs/archiver/ArchiveLn.htm
+
+
+# Return to starting dir
+cd -

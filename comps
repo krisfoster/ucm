@@ -1,0 +1,22 @@
+#!/bin/bash
+# 
+# License: This code is licensed as per the LICENSE file
+# included.
+#
+# Script to list the installed etc compnents on a server
+#
+# Usage:
+# idc <server name> [installed|disabled]
+#
+# Todo:
+# - Add checking that SERVERS and UCM_HOME has been set
+# - Check that the user has passed in the correct command line params
+#
+#
+# Author: Kris Foster kristian.foster@gmail.com
+#
+
+eval "UCM_HOME=\$$(echo $1'_UCM_HOME')"
+echo 'UCM Home Dir: '$UCM_HOME
+echo 'cd '$UCM_HOME'/bin; ./ComponentTool --list-'$2';' | ssh $1
+

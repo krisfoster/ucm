@@ -1,0 +1,40 @@
+#!/bin/bash
+# 
+# License: This code is licensed as per the LICENSE file
+# included.
+#
+# Script to tail the console log file for a UCM server instance on
+# a remote machine.
+# It assumes that you are ussing public/private keys to
+# access your servers over SSH.
+# Certain environment variables need to be deinfed that set
+# the home dir for the the UCM installation.
+# An example of how to set these up can be seen in the demo_servers
+# file contained within this folder.
+#
+# This script requires that you have lynx (text based browser) installed.
+#
+#
+# Usage:
+# idclogs <server name>
+#
+# Todo:
+# - Add checking that SERVERS and UCM_HOME has been set
+# - Check that the user has passed in the correct command line params
+# - Check that lynx is installed
+#
+#
+# Author: Kris Foster kristian.foster@gmail.com
+#
+
+eval "UCM_HOME=\$$(echo $1'_UCM_HOME')"
+echo 'UCM Home Dir: '$UCM_HOME
+tmp_file_1='ucm_log_1_'`date '+%s'`'.html'
+tmp_file_2='ucm_log_2_'`date '+%s'`'.html'
+echo '. ~/.profile; cd '$UCM_HOME'/../../shared/UCM/weblayout/groups/secure/logs; ls -t | head -1 | xargs cat;' | ssh $1 > $tmp_file_1
+num=$((`cat $tmp_file_1 | wc -l` - 2))
+tail -$num $tmp_file_1 > $tmp_file_2
+lynx $tmp_file_2
+rm $tmp_file_1
+rm $tmp_file_2
+

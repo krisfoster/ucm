@@ -1,0 +1,16 @@
+# This is an example of how you would configure the idc comannd
+# Add your list of servers to the SERVERS en var  and set up
+# a var for each server that points to thee root if the UCM
+# installation.
+# In order to use do the following:
+#     source ./demo_servers
+#
+
+# List of servers to access - this can be set in your shell rather
+# than in the script
+export SERVERS='demo1 demo2'
+
+# Root dir containing the remote UCM installation - again can be 
+# set in the shell rather than in the script
+export demo1_UCM_HOME='/u01/.....'
+export demo2_UCM_HOME='/u01/.....'
